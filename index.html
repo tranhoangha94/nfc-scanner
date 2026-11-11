@@ -92,7 +92,7 @@
     }
     .rename button { width: auto; padding: 12px 18px; background: var(--primary); color: #fff; }
 
-    .section-head { display: flex; align-items: center; gap: 8px; margin: 4px 2px 10px; }
+    .section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 2px 10px; }
     .section-head h2 { font-size: 1rem; margin: 0; flex: 1; }
     .section-head button { width: auto; }
 
@@ -148,8 +148,9 @@
   <div class="card">
     <div class="section-head">
       <h2>Lịch sử</h2>
+      <button class="btn-ghost" id="shareBtn">↗ Gửi</button>
       <button class="btn-ghost" id="exportBtn">⤓ CSV</button>
-      <button class="btn-ghost" id="clearBtn">Xóa hết</button>
+      <button class="btn-ghost" id="clearBtn">🗑 Xóa</button>
     </div>
     <ul class="log" id="logList"></ul>
     <div class="empty" id="logEmpty">Chưa có lần quẹt nào.</div>
@@ -294,21 +295,48 @@
       renderLogs();
     }
 
-    function exportCsv() {
-      if (!logs.length) { alert("Chưa có dữ liệu để xuất."); return; }
+    function buildCsv() {
       const rows = [["Ten", "UID", "Huong", "ThoiGian"]];
       // xuất theo thứ tự thời gian tăng dần cho dễ đọc
       [...logs].reverse().forEach(l => {
         rows.push([l.name || "", l.uid, dirLabel(l.dir), timeText(l.time)]);
       });
-      const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      return "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    }
+
+    function buildText() {
+      return "Nhật ký Scan NFC\n" +
+        [...logs].reverse().map(l => `${timeText(l.time)} • ${dirLabel(l.dir)} • ${l.name || l.uid}`).join("\n");
+    }
+
+    function exportCsv() {
+      if (!logs.length) { alert("Chưa có dữ liệu để xuất."); return; }
+      const blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `scannfc_${dayKey(Date.now())}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    // Gửi/chia sẻ nhật ký đi app khác (Zalo, Mail, Ghi chú…) hoặc copy — không cần app đọc CSV
+    async function shareLogs() {
+      if (!logs.length) { alert("Chưa có dữ liệu để gửi."); return; }
+      const text = buildText();
+      try {
+        const file = new File([buildCsv()], `scannfc_${dayKey(Date.now())}.csv`, { type: "text/csv" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: "Nhật ký Scan NFC" });
+          return;
+        }
+        if (navigator.share) { await navigator.share({ title: "Nhật ký Scan NFC", text }); return; }
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // người dùng tự đóng hộp chia sẻ
+      }
+      // fallback: copy vào clipboard
+      try { await navigator.clipboard.writeText(text); alert("Đã copy nhật ký vào clipboard."); }
+      catch { alert("Thiết bị không hỗ trợ chia sẻ/copy."); }
     }
 
     function showUnsupported() { $("unsupported").classList.remove("hidden"); }
@@ -320,6 +348,7 @@
     $("saveNameBtn").addEventListener("click", saveName);
     $("clearBtn").addEventListener("click", clearLogs);
     $("exportBtn").addEventListener("click", exportCsv);
+    $("shareBtn").addEventListener("click", shareLogs);
     $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveName(); });
 
     renderLogs();
