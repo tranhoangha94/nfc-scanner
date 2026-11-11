@@ -1,0 +1,4 @@
+<resources>
+    <!-- Giao diện dựng bằng Compose; theme XML chỉ cần nền không có ActionBar. -->
+    <style name="Theme.ScanNFC" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
